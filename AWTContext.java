@@ -42,7 +42,7 @@ public final class AWTContext {
         // this needs to be in core since doing this in hub plugins will break core gpu
         System.loadLibrary("jawt");
 
-        String overridePath = System.getProperty("runelite.rlawtpath");
+        final String overridePath = System.getProperty("runelite.rlawtpath");
         if (overridePath != null) {
             System.load(overridePath);
             return;
@@ -52,8 +52,11 @@ public final class AWTContext {
         String arch = System.getProperty("os.arch", "no-arch").toLowerCase(Locale.ROOT);
         String name = "unknown";
         if (os.contains("mac") || os.contains("darwin")) {
-            os = "mac";
+            os = "macos";
             name = "librlawt.dylib";
+            if (arch.contains("aarch64")) {
+                arch = "arm64";
+            }
         } else if (os.contains("win")) {
             os = "windows";
             name = "rlawt.dll";
@@ -62,14 +65,14 @@ public final class AWTContext {
             name = "librlawt.so";
         }
 
-        String path = os + "-" + arch + "/" + name;
-        try (InputStream is = AWTContext.class.getResourceAsStream(path)) {
-            if (is == null) {
+        final String path = os + "-" + arch + "/" + name;
+        try (final InputStream stream = AWTContext.class.getResourceAsStream(path)) {
+            if (stream == null) {
                 throw new RuntimeException("rlgl does not exist at " + path);
             }
 
             Path temp = Files.createTempFile("", name);
-            Files.copy(is, temp, StandardCopyOption.REPLACE_EXISTING);
+            Files.copy(stream, temp, StandardCopyOption.REPLACE_EXISTING);
             System.load(temp.toAbsolutePath().toString());
         } catch (IOException e) {
             throw new RuntimeException(e);
