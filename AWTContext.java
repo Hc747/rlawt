@@ -24,140 +24,126 @@
  */
 package net.runelite.rlawt;
 
-import java.awt.Component;
+import java.awt.*;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.annotation.Native;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.Locale;
 
-public final class AWTContext
-{
-	@Native
-	private long instance;
+public final class AWTContext {
 
-	public static void loadNatives()
-	{
-		// this needs to be in core since doing this in hub plugins will break core gpu
-		System.loadLibrary("jawt");
+    @Native
+    private long instance;
 
-		String overridePath = System.getProperty("runelite.rlawtpath");
-		if (overridePath != null)
-		{
-			System.load(overridePath);
-			return;
-		}
+    public static void loadNatives() {
+        // this needs to be in core since doing this in hub plugins will break core gpu
+        System.loadLibrary("jawt");
 
-		String os = System.getProperty("os.name", "no-os");
-		String arch = System.getProperty("os.arch", "no-arch");
-		String name = "unknown";
-		if (os.contains("mac") || os.contains("darwin"))
-		{
-			os = "mac";
-			name = "librlawt.dylib";
-		}
-		else if (os.contains("win"))
-		{
-			os = "windows";
-			name = "rlawt.dll";
-		}
-		else if (os.contains("nux"))
-		{
-			os = "linux";
-			name = "librlawt.so";
-		}
+        String overridePath = System.getProperty("runelite.rlawtpath");
+        if (overridePath != null) {
+            System.load(overridePath);
+            return;
+        }
 
-		String path = os + "-" + arch + "/" + name;
-		try (InputStream is = AWTContext.class.getResourceAsStream(path))
-		{
-			if (is == null)
-			{
-				throw new RuntimeException("rlgl does not exist at " + path);
-			}
+        String os = System.getProperty("os.name", "no-os").toLowerCase(Locale.ROOT);
+        String arch = System.getProperty("os.arch", "no-arch").toLowerCase(Locale.ROOT);
+        String name = "unknown";
+        if (os.contains("mac") || os.contains("darwin")) {
+            os = "mac";
+            name = "librlawt.dylib";
+        } else if (os.contains("win")) {
+            os = "windows";
+            name = "rlawt.dll";
+        } else if (os.contains("nux")) {
+            os = "linux";
+            name = "librlawt.so";
+        }
 
-			Path temp = Files.createTempFile("", name);
-			Files.copy(is, temp, StandardCopyOption.REPLACE_EXISTING);
-			System.load(temp.toAbsolutePath().toString());
-		}
-		catch (IOException e)
-		{
-			throw new RuntimeException(e);
-		}
-	}
+        String path = os + "-" + arch + "/" + name;
+        try (InputStream is = AWTContext.class.getResourceAsStream(path)) {
+            if (is == null) {
+                throw new RuntimeException("rlgl does not exist at " + path);
+            }
 
-	private static native long create0(Component component);
+            Path temp = Files.createTempFile("", name);
+            Files.copy(is, temp, StandardCopyOption.REPLACE_EXISTING);
+            System.load(temp.toAbsolutePath().toString());
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
 
-	public AWTContext(Component component)
-	{
-		this.instance = create0(component);
-		if (instance == 0)
-		{
-			throw new NullPointerException();
-		}
+    private static native long create0(Component component);
 
-		// JAWT on osx does not set our bounds when rlawt creates the CALayer
-		// so we have to calculate it's offset from the parent until it is first
-		// resized
-		// see Component#reshapeNativePeer
+    public AWTContext(Component component) {
+        this.instance = create0(component);
+        if (instance == 0) {
+            throw new NullPointerException();
+        }
 
-		int x = 0;
-		int y = 0;
-		for (Component c = component.getParent(); c != null && c.isLightweight(); c = c.getParent())
-		{
-			x += c.getX();
-			y += c.getY();
-		}
-		configureInsets(x, y);
-	}
+        // JAWT on osx does not set our bounds when rlawt creates the CALayer
+        // so we have to calculate it's offset from the parent until it is first
+        // resized
+        // see Component#reshapeNativePeer
 
-	public native void destroy();
+        int x = 0;
+        int y = 0;
+        for (Component c = component.getParent(); c != null && c.isLightweight(); c = c.getParent()) {
+            x += c.getX();
+            y += c.getY();
+        }
+        configureInsets(x, y);
+    }
 
-	private native void configureInsets(int x, int y);
+    public native void destroy();
 
-	public native void configurePixelFormat(int alpha, int depth, int stencil);
+    private native void configureInsets(int x, int y);
 
-	public native void configureMultisamples(int samples);
+    public native void configurePixelFormat(int alpha, int depth, int stencil);
 
-	/**
-	 * Gets the name of the active front or back framebuffer object.
-	 */
-	public native int getFramebuffer(boolean front);
+    public native void configureMultisamples(int samples);
 
-	/**
-	 * Gets the framebuffer target name associated with {@link #getFramebuffer(boolean)}
-	 */
-	public int getBufferMode()
-	{
-		final int GL_FRONT = 0x404;
-		final int GL_COLOR_ATTACHMENT0 = 0x8CE0;
+    /**
+     * Gets the name of the active front or back framebuffer object.
+     */
+    public native int getFramebuffer(boolean front);
 
-		return getFramebuffer(true) == 0 ? GL_FRONT : GL_COLOR_ATTACHMENT0;
-	}
+    /**
+     * Gets the framebuffer target name associated with {@link #getFramebuffer(boolean)}
+     */
+    public int getBufferMode() {
+        final int GL_FRONT = 0x404;
+        final int GL_COLOR_ATTACHMENT0 = 0x8CE0;
 
-	/**
-	 * Ends the configuration phase of the context, actually creating an OpenGL
-	 * context.
-	 */
-	public native void createGLContext();
+        return getFramebuffer(true) == 0 ? GL_FRONT : GL_COLOR_ATTACHMENT0;
+    }
 
-	public native int setSwapInterval(int interval);
+    /**
+     * Ends the configuration phase of the context, actually creating an OpenGL
+     * context.
+     */
+    public native void createGLContext();
 
-	public native void makeCurrent();
+    public native int setSwapInterval(int interval);
 
-	public native void detachCurrent();
+    public native void makeCurrent();
 
-	/**
-	 * Presents the framebuffer to the user. After calling this you MUST bind
-	 * the current active framebuffer (see {@link #getFramebuffer(boolean)}) before drawing anything else
-	 */
-	public native void swapBuffers();
+    public native void detachCurrent();
 
-	public native long getGLContext();
+    /**
+     * Presents the framebuffer to the user. After calling this you MUST bind
+     * the current active framebuffer (see {@link #getFramebuffer(boolean)}) before drawing anything else
+     */
+    public native void swapBuffers();
 
-	public native long getCGLShareGroup();
+    public native long getGLContext();
 
-	public native long getGLXDisplay();
+    public native long getCGLShareGroup();
 
-	public native long getWGLHDC();
+    public native long getGLXDisplay();
+
+    public native long getWGLHDC();
 }
